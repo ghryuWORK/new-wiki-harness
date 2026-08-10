@@ -1,0 +1,30 @@
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Obsidian
+.obsidian/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Node/npm (필요시)
+node_modules/
+package-lock.json
+yarn.lock
+
+# 환경 변수 및 민감한 정보
+.env
+.env.local
+*.key
+*.pem
+secrets.json
+
+# 임시 파일
+*.tmp
+*.log
