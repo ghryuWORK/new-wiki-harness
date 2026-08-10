@@ -65,37 +65,89 @@ LLM wiki 패턴 기반 회의록 관리 시스템의 실행 규칙.
 
 ### Wiki 항목 관리 (자동화 - ingest 스킬 사용)
 
-#### W-1: 회의록 → Wiki 변환 절차 (필수)
+#### W-1: Wiki 적재 및 검증 워크플로우 (필수)
 
-**절차 (모든 경우에 반드시 따를 것)**:
+**완전한 워크플로우** (Raw → Wiki → 검증까지):
 
-1. **SKILL.md 읽기** ← 항상 처음부터 읽기
-   ```
-   ingest-meeting-notes/SKILL.md
-   ```
-   - 7단계 프로세스 이해
-   - Status 결정 규칙 확인
-   - 문제 감지 기준 파악
+```
+Step 1: 적재 (Ingest)
+       ↓
+Step 2: 기계 검증 (Mechanical)
+       ↓
+Step 3: 컨텐츠 검증 (Content Review)
+       ↓
+Wiki 항목 확정
+```
 
-2. **Raw 회의록 준비**
+**Step 1: 적재 (Ingest)**
+
+1. **Raw 회의록 준비**
    - 필수 메타데이터 포함 (R-2)
    - 필수 섹션 포함 (R-3)
    - 발언자 명확하게 (R-4)
 
-3. **ingest 스킬 호출** (또는 로직 수동 구현)
+2. **ingest-meeting-notes 스킬 실행**
    ```bash
    /ingest raw/YYYY-MM-DD-회의명.md
    ```
-   또는 Agent를 사용해 SKILL.md 로직 구현
+   - SKILL.md에서 5단계 프로세스 확인:
+     1. 회의록 분석 (메타데이터, 섹션 파싱)
+     2. 항목 분류 (D/A/P 판단)
+     3. ID 할당 (순증가)
+     4. Status 결정 (스키마 v1.1)
+     5. 파일 생성 + 문제 감지
 
-4. **생성된 Wiki 파일 확인**
-   - D-xxx, A-xxx, P-xxx 파일 생성 여부
-   - Status 자동 결정 여부
-   - 상태 변화 추적 여부
+3. **생성 결과 확인**
+   - D-xxx, A-xxx, P-xxx 파일이 wiki/ 폴더에 생성되었는가?
+   - ingest 경고 메시지 확인
 
-5. **문제점 검토**
-   - ingest 결과 경고 메시지 확인
-   - 필요시 담당자/기한 추가 또는 수정
+**Step 2: 기계 검증 (Mechanical)**
+
+```bash
+python scripts/check.py
+```
+
+**검증 항목**:
+- ✅ Frontmatter YAML 형식
+- ✅ 필수 필드 (id, source, title, owner, status, created_date)
+- ✅ 파일명 규칙 (D-xxx.md, A-xxx.md, P-xxx.md)
+- ✅ Status 값 유효성 (스키마 v1.1 준수)
+- ✅ 날짜 형식 (YYYY-MM-DD)
+- ✅ ID 순증가 (중복/갭 없음)
+
+**통과 기준**: 오류 0개
+
+**통과하지 않으면**:
+- 오류 내용 확인
+- Wiki 파일 수정
+- check.py 재실행
+
+**Step 3: 컨텐츠 검증 (Content Review)**
+
+```bash
+/wiki-content-review wiki/
+```
+
+**검증 항목** (파일별):
+- ✅ 일치성: 회의록과 정확히 일치?
+- ✅ 생성 오류: 회의록에 없는 내용 작성?
+- ✅ 누락: 핵심 내용 빠짐?
+- ✅ 상태 추적: 다중 회의 항목의 상태 변화 기록?
+- ✅ 액션 추적: open/blocked/on_hold 상태 명확?
+
+**점수**: 각 파일별 5/5 목표
+- 5/5 (⭐⭐⭐⭐⭐): 완벽
+- 2-4/5: 경고 (개선 후 재검증)
+- 0-1/5: 심각 (필수 수정)
+
+**통과하지 않으면**:
+- 발견사항 확인
+- Wiki 파일 수정
+- review 스킬 재실행
+
+**최종 확정**:
+- Step 2, Step 3 모두 통과 → Wiki 항목 확정
+- 문제점 있으면 위로 돌아가서 수정
 
 #### W-2: ingest 스킬 작동 내용
 
