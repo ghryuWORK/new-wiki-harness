@@ -1,0 +1,86 @@
+name: Wiki 자동 검증 및 정리
+
+on:
+  pull_request:
+    paths:
+      - 'wiki/**'
+      - 'scripts/check.py'
+  push:
+    branches:
+      - master
+    paths:
+      - 'wiki/**'
+      - 'scripts/check.py'
+  pull_request_closed:
+    types:
+      - closed
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    name: Wiki 형식 & 스키마 검증
+
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 설정
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: 의존성 설치
+        run: pip install pyyaml
+
+      - name: Wiki 기계 검증 실행
+        run: python scripts/check.py
+
+      - name: 검증 결과 리포트
+        if: always()
+        run: |
+          echo "## Wiki 검증 완료 ✅" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Frontmatter YAML 형식 검증" >> $GITHUB_STEP_SUMMARY
+          echo "- 필수 필드 확인 (id, source, title, owner, status, created_date)" >> $GITHUB_STEP_SUMMARY
+          echo "- 파일명 규칙 검증 (D-xxx.md, A-xxx.md, P-xxx.md)" >> $GITHUB_STEP_SUMMARY
+          echo "- Status 값 유효성 (스키마 v1.1)" >> $GITHUB_STEP_SUMMARY
+          echo "- 날짜 형식 (YYYY-MM-DD)" >> $GITHUB_STEP_SUMMARY
+          echo "- ID 순증가 검증 (중복/갭 없음)" >> $GITHUB_STEP_SUMMARY
+
+      - name: PR 댓글 남기기
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const checkOutput = require('child_process').execSync('python scripts/check.py', {encoding: 'utf-8'});
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '### Wiki 검증 결과\n\n```\n' + checkOutput + '\n```'
+            });
+
+  cleanup:
+    name: 피쳐 브랜치 정리 (Merge 후)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
+    permissions:
+      contents: write
+
+    steps:
+      - name: 피쳐 브랜치 삭제
+        uses: dawidd6/action-delete-branch@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branches: ${{ github.head_ref }}
+
+      - name: 완료 알림
+        run: |
+          echo "## Wiki 적재 완료 ✅" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- PR Merge 완료: ${{ github.head_ref }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 피쳐 브랜치 자동 삭제됨" >> $GITHUB_STEP_SUMMARY
+          echo "- Wiki 항목 확정 상태" >> $GITHUB_STEP_SUMMARY

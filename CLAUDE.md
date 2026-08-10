@@ -67,17 +67,38 @@ LLM wiki 패턴 기반 회의록 관리 시스템의 실행 규칙.
 
 #### W-1: Wiki 적재 및 검증 워크플로우 (필수)
 
-**완전한 워크플로우** (Raw → Wiki → 검증까지):
+**전체 프로세스** (Raw 준비 → 피쳐 브랜치 → 적재 → 검증 → PR → 머지):
 
 ```
+0. Git 브랜치 생성
+   feature/ingest-YYYY-MM-DD-회의명
+       ↓
 Step 1: 적재 (Ingest)
        ↓
 Step 2: 기계 검증 (Mechanical)
        ↓
 Step 3: 컨텐츠 검증 (Content Review)
        ↓
-Wiki 항목 확정
+Step 4: PR 생성 & 리뷰
+       ↓
+Step 5: 승인 후 Squash Merge
+       ↓
+피쳐 브랜치 자동 삭제
 ```
+
+**Step 0: Git 브랜치 생성**
+
+1. **새 회의록을 준비**하면 (raw/ 폴더에 저장)
+   ```bash
+   git checkout -b feature/ingest-2026-06-25-온보딩회의
+   ```
+   - 브랜치명: `feature/ingest-YYYY-MM-DD-회의명`
+   - 특수문자는 하이픈으로 대체
+
+2. **Raw 회의록 검증** (CLAUDE.md R-1 ~ R-4 규칙)
+   - 필수 메타데이터 (출처, 회의일, 가져온시점, 참석)
+   - 필수 섹션 (안건, 회의내용, 액션아이템)
+   - 발언자 명확 (`- 이름: 내용`)
 
 **Step 1: 적재 (Ingest)**
 
@@ -168,6 +189,122 @@ python scripts/check.py
 - 담당자/기한 추가 필요시 수정
 - 선행 조건 확인 필요시 수정
 - 우선순위 재결정 필요시 수정
+
+**Step 4: PR 생성 및 리뷰**
+
+1. **PR 생성**
+   ```bash
+   git push origin feature/ingest-2026-06-25-온보딩회의
+   ```
+   - GitHub에서 자동으로 "Create Pull Request" 제안
+   - PR 제목: `Wiki 적재: 2026-06-25 온보딩 개선 회의`
+   - PR 본문에 포함:
+     - 생성된 항목 목록 (D-xxx, A-xxx, P-xxx)
+     - 기계 검증 결과 (0 errors)
+     - 컨텐츠 검증 점수 (각 파일의 점수)
+
+2. **자동 검증** (GitHub Actions)
+   - `wiki-validation.yml` 워크플로우 자동 실행
+   - `scripts/check.py` 기계 검증 수행
+   - 실패하면 PR 코멘트로 오류 표시
+   - 통과하면 "All checks passed" 표시
+
+3. **코드 리뷰**
+   - 팀원이 PR 검토 (내용 일치성, 문제점 포함)
+   - 승인(Approve) 필수
+
+**Step 5: 승인 후 Merge & 정리**
+
+1. **Squash Merge 수행**
+   - 모든 커밋을 하나로 통합
+   - 커밋 메시지: `Wiki: [회의 정보] 적재 및 검증 완료`
+   - 예: `Wiki: 2026-06-25 온보딩 개선 회의 적재 및 검증 완료`
+
+2. **자동 정리**
+   - ✅ GitHub 설정: "Automatically delete head branches" 활성화
+   - 또는 수동으로 로컬에서:
+     ```bash
+     git branch -d feature/ingest-2026-06-25-온보딩회의
+     ```
+
+3. **원격 추적**
+   ```bash
+   git fetch --prune
+   ```
+
+---
+
+### Git 브랜치 정책
+
+#### GB-1: 브랜치 전략 (GitHub Flow)
+
+```
+master (프로덕션)
+  ↑
+  └─ feature/ingest-YYYY-MM-DD-회의명 (임시)
+       ↑
+       └─ Raw 회의록 추가 → 적재 → 검증 → PR → Squash Merge
+```
+
+**규칙**:
+- ✅ master 직접 푸시 금지
+- ✅ 모든 변경은 피쳐 브랜치에서 진행
+- ✅ PR 필수 (자동 검증 통과 후 승인)
+- ✅ Squash Merge (깔끔한 히스토리)
+- ✅ Merge 후 피쳐 브랜치 자동 삭제
+
+#### GB-2: 피쳐 브랜치 명명 규칙
+
+```
+feature/ingest-YYYY-MM-DD-회의주제
+```
+
+**예시**:
+- ✅ `feature/ingest-2026-06-25-온보딩개선`
+- ✅ `feature/ingest-2026-07-09-제품주간`
+- ❌ `feature/회의` (너무 모호)
+- ❌ `feature/new-wiki-items` (용도 불명확)
+
+**규칙**:
+- 반드시 `feature/ingest-` 접두사로 시작
+- 날짜 필수 (YYYY-MM-DD)
+- 회의 주제는 하이픈으로 연결
+- 한글 가능
+
+#### GB-3: PR 체크리스트
+
+**PR 생성 전**:
+- [ ] Raw 회의록이 R-1 ~ R-4 규칙 만족?
+- [ ] `python scripts/check.py` 실행 (0 errors)?
+- [ ] `/wiki-content-review wiki/` 실행 (점수 확인)?
+- [ ] 모든 Wiki 파일이 wiki/ 폴더에 생성됨?
+
+**PR 생성 후**:
+- [ ] GitHub Actions 검증 통과?
+- [ ] 팀원 승인 받음?
+- [ ] Squash Merge 준비 완료?
+
+**Merge 후**:
+- [ ] 피쳐 브랜치 자동 삭제됨? (또는 수동 삭제)
+- [ ] master 브랜치 최신 상태 확인?
+
+#### GB-4: 충돌 처리
+
+**피쳐 브랜치가 master에 뒤처진 경우**:
+
+```bash
+# 방법 1: Rebase (선호)
+git fetch origin
+git rebase origin/master
+
+# 방법 2: Merge (충돌 많으면)
+git merge origin/master
+```
+
+**규칙**:
+- 충돌 해결 후 다시 푸시
+- `--force-with-lease` 사용 (실수로 타인 변경 덮어쓰기 방지)
+- PR에 충돌 해결 커밋 포함
 
 ---
 
